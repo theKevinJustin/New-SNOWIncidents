@@ -3,7 +3,7 @@ PowerShell script to take SCOM alerts to ITSM ServiceNow incidents
 
 New-SNOWIncident.ps1 v1.0.0.0
 
-Download [here](https://github.com/theKevinJustin/TangibleProV/blob/main/Tangible.ProV.Application.Customizations.xml)
+Download [here](https://github.com/theKevinJustin/SCOM-SNOWIncidents/blob/main/New-SNowIncident.ps1)
 
 ### New-SNOWIncidents
 Creates ServiceNow incidents leveraging multiple SCOM alert fields, and updates SCOM alert Owner, TicketID, and ResolutionState with successful incident creation.
