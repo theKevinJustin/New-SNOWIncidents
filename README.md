@@ -1,5 +1,5 @@
 # New-SNOWIncidents
-PowerShell script to take SCOM alerts to ITSM ServiceNow incidents
+PowerShell script to take SCOM alerts to create ITSM ServiceNow incidents
 
 New-SNOWIncident.ps1 v1.0.0.0
 
