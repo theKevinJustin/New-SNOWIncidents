@@ -25,12 +25,22 @@ Example SNOWAlertName
 Example SNOWAlertName
 	$SNOWAlertName = "##CUSTOMER## SCOM Event - $AlertName"
 
+# Don't forget to replace SNOW DEV URL with Prod before going to production events
+
 # Replace these variables with valid values:
 ##CUSTOMER##
-##ServiceNowURL##
+##TEAM##
+# Find/Replace ##Company## ##Team## to fill out short_description
+##SERVICENOWURL##
+##CallerID##
+
 
 # If required, add proxy URL for REST injection
 ##Proxy##
+
+Example ##ServiceNowURL##
+$ServiceNowURL = https://testlab.net/api/now/table/incident"
+
 
 Example ##Proxy##
 http:/yourproxyhere.com:8080"
@@ -120,166 +130,6 @@ Param (
 )
 
 
-# Global variables
-# Hard code URL, Proxy, CallerID SNOW variables into script
-#===============================================
-
-# Don't forget to replace SNOW DEV URL with Prod before going to production events
-
-# Replace these variables with valid values:
-##CUSTOMER##
-##TEAM##
-# Find/Replace ##Company## ##Team## to fill out short_description
-##SERVICENOWURL##
-##CallerID##
-
-
-$ServiceNowURL = ##ServiceNowURL##/api/now/table/incident"
-
-# Self-Service,Direct options requested, Monitoring hidden, Auto-Gen requested to ServiceNow ITSM team
-$Channel = "Direct"
-
-# Values
-$ServiceNowURL="https://##ServiceNowURL##/api/now/table/incident"
-#$Proxy = "##CustomerProxyURL##"
-$CallerID = "##CallerID##"
-
-# Assume module NOT loaded into current PowerShell profile
-Import-Module -Name CredentialManager
-
-
-#=================================================================================
-# Starting Script section - All scripts get this
-#=================================================================================
-# Gather the start time of the script
-$StartTime = Get-Date
-
-# Set variable to be used in logging events
-$whoami = whoami
- 
-# ScriptName should match the <scriptname.ps1> to log script details
-#=================================================================================
-# ScriptName
-$ScriptName = "New-SNowIncident.ps1"
-$EventID = "700"
-
-# Create new object for MOMScript API, or SCOM alert properties
-$momapi = New-Object -comObject MOM.ScriptAPI
-
-# Begin logging script starting into event log
-# write-host "Script is starting. `n Running as ($whoami)."
-$momapi.LogScriptEvent($ScriptName,$EventID,0,"Script is starting. `n Running as ($whoami).")
-#=================================================================================
-
-# PropertyBag Script section - Monitoring scripts get this
-#=================================================================================
-# Load SCOM PropertyBag function
-$bag = $momapi.CreatePropertyBag()
-
-$date = get-date -uFormat "%Y-%m-%d"
-
-<#
-# Retrieve SNOW credential from Credential Manager
-#===============================================
-# Example
-# $Credential = Get-StoredCredential -Target "SNOW_Account"
-#
-# ID, Password, and Caller_ID are provided by AESMP team
-#>
-
-$Credential = Get-StoredCredential -Target "ServiceNowCredential"
-$ServiceNowUser = $Credential.Username
-$ServiceNowPassword = $Credential.GetNetworkCredential().Password
-
-if ( $Credential -eq $Null )
-	{
-	write-host "ServiceNow Credential NOT stored on server"
-	$momapi.LogScriptEvent($ScriptName,$EventID,0,"ServiceNow Credential NOT stored on server")
-	}
-
-#Assuming No changes, inputs passed to SCOM channel for SNOW event creation
-write-host ""
-#write-host "SCOM Alert alertName = $AlertName, Alert ID = $AlertID"
-#$momapi.LogScriptEvent($ScriptName,$EventID,0,"SCOM Alert alertName = $AlertName, Alert ID = $AlertID")
-
-$Alert = Get-SCOMAlert -Id $AlertID | where { ( $_.Name -eq $AlertName ) } #-AND ( $_.ResolutionState -ne 255 ) }
-#write-host "SCOM Alert ready for parsing"
-
-
-# Multiple locations for HostName in alerts based on class, path, and other variables
-# Hostname
-# Figure out hostname based on alert values
-#===============================================
-
-$MonitoringObjectPath = ($Alert |select MonitoringObjectPath).MonitoringObjectPath
-$MonitoringObjectDisplayName = ($Alert |select MonitoringObjectDisplayName).MonitoringObjectDisplayName	
-$PrincipalName = ($Alert |select PrincipalName).PrincipalName
-$DisplayName = ($Alert |select DisplayName).DisplayName
-$PKICertPath = ($Alert |select Path).Path
-
-# Update tests with else for PowerShell script
-if ( $MonitoringObjectPath -ne $null ) { $Hostname = $MonitoringObjectPath }
-if ( $MonitoringObjectDisplayName -ne $null ) { $Hostname = $MonitoringObjectDisplayName }
-if ( $PrincipalName -ne $null ) { $Hostname = $PrincipalName }
-if ( $DisplayName -ne $null ) { $Hostname = $DisplayName }
-if ( $PKICertPath -ne $null ) { $Hostname = $PKICertPath }
-
-# Verify unique Hostname
-if ( ( $Hostname | measure).Count -gt 1 )
-	{
-	$Hostname = $Hostname | sort -uniq
-	write-host $Hostname
-	}
-
-$IP = Resolve-DNSName -Name $hostname -Type A
-$ServerIP = ($IP.IPAddress)
-
-# Remove FQDN, leaving servername
-$ParseHost = $Hostname.Split(".")
-$Hostname = $Parsehost[0]
-
-<# 
-Debug
-$ServerIP
-$MonitoringObjectPath
-$MonitoringObjectDisplayName
-$PrincipalName
-$DisplayName
-$PKICertPath
-#>
-
-#write-host "SCOM Alert Hostname = $Hostname"
-
-# Combined event
-write-host "SCOM Alert - Hostname = $Hostname, AlertName = $AlertName, Alert ID = $AlertID"
-$momapi.LogScriptEvent($ScriptName,$EventID,0,"SCOM Alert - Hostname = $Hostname, AlertName = $AlertName, Alert ID = $AlertID")
-
-
-
-# Determine SCOM Alert Description excludex JSON special characters
-#===============================================
-#write-host "Begin SCOM Alert Description JSON audit"
-$Description = $Alert.Description
-
-$Description = $Description -replace "^@", ""
-$Description = $Description -replace "=", ":"
-$Description = $Description -replace ";", ","
-$Description = $Description -replace "`", "#"
-$Description = $Description -replace "{", "*"
-$Description = $Description -replace "}", "*"
-$Description = $Description -replace "\n", "\\n"
-$Description = $Description -replace "\r", "\\r"
-$Description = $Description -replace "\\\\n", "\\n"
-
-#write-host "SCOM Alert Description formatted for JSON"
-#write-host $Description
-#Add-Event $Description
-
-#write-host "End GLobal section"
-#Add-Event "End GLobal section"
-write-host ""
-
-# End Global section
 
 <#
 .Synopsis
@@ -321,7 +171,7 @@ write-host ""
    
    Example outputs running functions from PowerShell
    PS C:\Users\scomadmin> Get-SNowParameters
-	https://##ServiceNowURL##/api/now/table/incident
+	https://<ServiceNowURL>/api/now/table/incident
 	
 	PROD ServiceNow URL specified
 
@@ -346,6 +196,171 @@ write-host ""
 .FUNCTIONALITY
    Setup ServiceNow (SNoW) incidents, based on strategy 'intervention required' monitoring and alerting.
 #>
+
+
+
+# Self-Service,Direct options requested, Monitoring hidden, Auto-Gen requested to ServiceNow ITSM team
+#$Channel = "Direct"
+
+# ServiceNow URL
+$ServiceNowURL = "##ServiceNowURL##"
+
+#$Proxy = "##CustomerProxyURL##"
+$CallerID = "##CallerID##"
+
+# Assume module NOT loaded into current PowerShell profile
+Import-Module -Name CredentialManager
+
+
+#=================================================================================
+# Starting Script section - All scripts get this
+#=================================================================================
+# Gather the start time of the script
+$StartTime = Get-Date
+
+# Set variable to be used in logging events
+$whoami = whoami
+ 
+# ScriptName should match the <scriptname.ps1> to log script details
+#=================================================================================
+# ScriptName
+$ScriptName = "New-SNowIncident.ps1"
+$EventID = "700"
+
+# Create new object for MOMScript API, or SCOM alert properties
+$momapi = New-Object -comObject MOM.ScriptAPI
+
+# Begin logging script starting into event log
+# write-host "Script is starting. `n Running as ($whoami)."
+$momapi.LogScriptEvent($ScriptName,$EventID,0,"Script is starting. `n Running as ($whoami).")
+#=================================================================================
+
+# PropertyBag Script section - Monitoring scripts get this
+#=================================================================================
+# Load SCOM PropertyBag function
+$bag = $momapi.CreatePropertyBag()
+
+$date = get-date -uFormat "%Y-%m-%d"
+
+
+
+<#
+# Retrieve SNOW credential from Credential Manager
+#===============================================
+# Example
+# $Credential = Get-StoredCredential -Target "SNOW_Account"
+#
+# ID, Password, and Caller_ID are provided by AESMP team
+#>
+
+$Credential = Get-StoredCredential -Target "ServiceNowCredential"
+$ServiceNowUser = $Credential.Username
+$ServiceNowPassword = $Credential.GetNetworkCredential().Password
+
+if ( $Credential -eq $Null )
+	{
+	write-host "ServiceNow Credential NOT stored on server"
+	$momapi.LogScriptEvent($ScriptName,$EventID,0,"ServiceNow Credential NOT stored on server")
+	}
+
+write-host ""
+
+<# 
+Assuming No changes, inputs passed to SCOM channel for SNOW event creation
+
+Write AlertName and AlertID variables
+
+* Uncomment as needed for commented (#) debug write-host lines as needed
+#>
+
+#write-host "SCOM Alert alertName = $AlertName, Alert ID = $AlertID"
+#$momapi.LogScriptEvent($ScriptName,$EventID,0,"SCOM Alert alertName = $AlertName, Alert ID = $AlertID")
+
+$Alert = Get-SCOMAlert -Id $AlertID | where { ( $_.Name -eq $AlertName ) } #-AND ( $_.ResolutionState -ne 255 ) }
+#write-host "SCOM Alert ready for parsing"
+
+
+<#
+# Multiple locations for HostName in alerts based on class, path, and other variables
+# Hostname
+# Figure out hostname based on alert values
+#===============================================
+#>
+
+$MonitoringObjectPath = ($Alert |select MonitoringObjectPath).MonitoringObjectPath
+$MonitoringObjectDisplayName = ($Alert |select MonitoringObjectDisplayName).MonitoringObjectDisplayName	
+$PrincipalName = ($Alert |select PrincipalName).PrincipalName
+$DisplayName = ($Alert |select DisplayName).DisplayName
+$PKICertPath = ($Alert |select Path).Path
+
+# Update tests with else for PowerShell script
+if ( $MonitoringObjectPath -ne $null ) { $Hostname = $MonitoringObjectPath }
+if ( $MonitoringObjectDisplayName -ne $null ) { $Hostname = $MonitoringObjectDisplayName }
+if ( $PrincipalName -ne $null ) { $Hostname = $PrincipalName }
+if ( $DisplayName -ne $null ) { $Hostname = $DisplayName }
+if ( $PKICertPath -ne $null ) { $Hostname = $PKICertPath }
+
+# Verify unique Hostname
+if ( ( $Hostname | measure).Count -gt 1 )
+	{
+	$Hostname = $Hostname | sort -uniq
+	write-host $Hostname
+	}
+
+$IP = Resolve-DNSName -Name $hostname -Type A
+$ServerIP = ($IP.IPAddress)
+
+# Remove FQDN, leaving servername
+$ParseHost = $Hostname.Split(".")
+$Hostname = $Parsehost[0]
+
+<# 
+Debug
+$ServerIP
+$MonitoringObjectPath
+$MonitoringObjectDisplayName
+$PrincipalName
+$DisplayName
+$PKICertPath
+
+* Uncomment as needed for debug write-host lines
+#>
+
+#write-host "SCOM Alert Hostname = $Hostname"
+
+# Combined event
+write-host "SCOM Alert - Hostname = $Hostname, AlertName = $AlertName, Alert ID = $AlertID"
+$momapi.LogScriptEvent($ScriptName,$EventID,0,"SCOM Alert - Hostname = $Hostname, AlertName = $AlertName, Alert ID = $AlertID")
+
+
+
+<#
+Determine SCOM Alert Description excludex JSON special characters
+
+* Uncomment as needed for debug write-host lines
+#>
+#write-host "Begin SCOM Alert Description JSON audit"
+$Description = $Alert.Description
+
+$Description = $Description -replace "^@", ""
+$Description = $Description -replace "=", ":"
+$Description = $Description -replace ";", ","
+$Description = $Description -replace "`", "#"
+$Description = $Description -replace "{", "*"
+$Description = $Description -replace "}", "*"
+$Description = $Description -replace "\n", "\\n"
+$Description = $Description -replace "\r", "\\r"
+$Description = $Description -replace "\\\\n", "\\n"
+
+#write-host "SCOM Alert Description formatted for JSON"
+#write-host $Description
+#Add-Event $Description
+
+#write-host "End GLobal section"
+#Add-Event "End GLobal section"
+write-host ""
+
+# End Global section
 
 
 
@@ -399,9 +414,14 @@ $momapi.LogScriptEvent($ScriptName,$EventID,0,$Message)
 
 function Add-SCOMAlertFields
 {
+	<#
 	#===============================================================
-	# Gather values to update SCOM alert
+	# Gather values to update SCOM alert fields after processing incident RESTAPI
 	#===============================================================
+	
+	* Uncomment as needed for debug write-host lines
+	#>
+
 	#write-host "Begin Add-SCOMAlertFields function"
 	#add-event "Begin Add-SCOMAlertFields function"
 
@@ -437,7 +457,12 @@ function Add-SCOMAlertFields
 		#add-event "SNOW Incident TicketID = $TicketID"		
 		}
 
+	<#
 	# AssignmentGroup & TicketID is freeform string field
+	
+	* Uncomment as needed for debug write-host lines
+	#>
+
 	#write-host "SNOW Incident AssignmentGroup = $AssignmentGroup"
 	#add-event "SNOW Incident AssignmentGroup = $AssignmentGroup"
 
@@ -475,13 +500,20 @@ function Add-SCOMAlertFields
 
 
 
-<# Resolve alert?
+<# 
+Resolve alert example updating SCOM alert with information
 #===========================
+
+Update SCOM alert with SNOW incident #, Assignment Group, and comment.
+
+Example
 Get-SCOMAlert -Name "$AlertName" -ResolutionState 0 | Resolve-SCOMAlert -ticketID $TicketID `
 	-Owner "$AssignmentGroup" `
 	-Comment "Resolve ServiceNow SCOM alert automation - Set Ticket, Owner, Resolution state in current alert"
 
 	Add-Event "Resolved SCOM alert $TicketID for group $AssignmentGroup"
+
+* Uncomment as needed for debug write-host lines
 #>
 
 write-host ""
@@ -545,6 +577,12 @@ function Get-SNowParameters
 
 
 
+<#
+Begin function debug
+
+* Uncomment as needed for debug write-host lines
+#>
+
 #Write-host "Begin function get-SNOWIncident"
 #Add-Event "Begin function get-SNOWIncident"
 
@@ -581,8 +619,10 @@ if ( $ServiceNowURL -eq $null )
 # Pre-req for CredentialManager powershell (posh) module
 # Assume module NOT loaded into current PowerShell profile
 
-Import-Module -Name CredentialManager
+* Uncomment as needed for debug write-host lines
 #>
+
+Import-Module -Name CredentialManager
 
 # Verify Credential Manager snap in installed
 $CredMgrModuleBase = Get-Module -Name CredentialManager
@@ -633,7 +673,6 @@ if ( $Credential.UserName -eq $null )
 
 # Test Credential variables for User password are provided
 #===============================================
-#===============================================
 if ( $ServiceNowUser -eq $null )
 	{
 	write-host "ServiceNow User NOT stored on server"
@@ -672,6 +711,10 @@ $Alert = Get-SCOMAlert -Id $AlertID | where { ( $_.Name -eq $AlertName ) -AND ( 
 
 # Evaluate alert closed before SCOM channel SNOW script executed
 #===============================================
+
+* Uncomment as needed for debug write-host lines
+#>
+
 # Get ResolutionState
 $AlertResolutionState = $Alert.ResolutionState
 
@@ -697,8 +740,13 @@ $AlertCategory = $Alert.Category
 #write-host "SCOM Alert Category = $($AlertCategory)"
 
 
+<#
 # Determine SCOM Alert Severity to ITSM tool impact
 #===============================================
+
+* Uncomment as needed for debug write-host lines
+#>
+
 $Severity = $Alert.Severity
 #write-host "SCOM Alert Severity = $($Severity)"
 #Add-Event "SCOM Alert Severity = $($Severity)"
@@ -829,11 +877,19 @@ function New-SNowIncident
     [String]$Category,
     [String]$SubCategory,
 	[String]$Channel
+
+* Uncomment as needed for debug write-host lines
 #>
 
 
+<#
+Build SNOW IncidentData variable with SCOM to SNow fields
 # Set up IncidentData variable with SCOM to SNow fields
 #===============================================
+
+* Uncomment as needed for debug write-host lines
+#>
+
 #write-host "Create ServiceNow incident for ($date)."
 #Add-Event "Create ServiceNow incident for ($date)."
 
